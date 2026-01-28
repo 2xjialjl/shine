@@ -3,79 +3,71 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>音頻反應：分形萬花筒 Shader</title>
+    <title>靈魂星雲 | Soul Nebula Fluid</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
       body {
         margin: 0;
         overflow: hidden;
-        background-color: #000;
-        font-family: "Segoe UI", sans-serif;
+        background-color: #020205;
+        font-family: "Segoe UI", system-ui, sans-serif;
       }
       canvas {
         display: block;
       }
       #overlay {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
         color: #fff;
-        text-align: center;
-        background: rgba(0, 0, 0, 0.8);
-        padding: 40px 60px;
-        border-radius: 5px;
+        background: radial-gradient(circle at center, rgba(10, 0, 30, 0.85) 0%, #000 100%);
         cursor: pointer;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 0 50px rgba(100, 0, 255, 0.2);
         z-index: 100;
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
-        transition: all 0.5s ease;
-        max-width: 85vw;
-        box-sizing: border-box;
-      }
-      #overlay:hover {
-        border-color: #a044ff;
-        box-shadow: 0 0 70px rgba(160, 68, 255, 0.4);
+        transition: all 1s ease-in-out;
       }
       #overlay.hidden {
         opacity: 0;
         pointer-events: none;
-        transform: translate(-50%, -50%) scale(1.2);
+        transform: scale(1.5);
       }
-      h2 {
-        margin: 0;
+      .container {
+        text-align: center;
+        padding: 30px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+      }
+      h1 {
         font-weight: 200;
-        letter-spacing: 10px;
-        color: #a044ff;
-        text-shadow: 0 0 10px rgba(160, 68, 255, 0.5);
+        letter-spacing: 12px;
+        margin: 0;
+        background: linear-gradient(45deg, #00d2ff, #9d50bb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.5rem;
       }
-      p {
-        margin: 15px 0 0 0;
-        font-size: 11px;
-        color: #888;
-        letter-spacing: 4px;
-      }
-      @media (max-width: 480px) {
-        #overlay {
-          padding: 30px 24px;
-        }
-        h2 {
-          font-size: 18px;
-          letter-spacing: 6px;
-        }
-        p {
-          font-size: 10px;
-          letter-spacing: 2px;
-        }
+      .hint {
+        margin-top: 15px;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 10px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
       }
     </style>
   </head>
   <body>
     <div id="overlay">
-      <h2>解鎖分形</h2>
-      <p>UNLOCK FRACTAL RESONANCE</p>
+      <div class="container">
+        <h1>SOUL NEBULA</h1>
+        <div class="hint">Click to Connect Audio Stream</div>
+      </div>
     </div>
 
     <script id="vertexShader" type="x-shader/x-vertex">
@@ -90,74 +82,97 @@
       precision highp float;
       uniform float uTime;
       uniform vec2 uResolution;
+      uniform vec2 uMouse;
       uniform float uAudioIntensity;
       uniform float uBass;
       uniform float uTreble;
       varying vec2 vUv;
 
-      // 旋轉矩陣
-      mat2 rot(float a) {
-          float s = sin(a), c = cos(a);
-          return mat2(c, -s, s, c);
+      // 偽隨機函數
+      float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
       }
 
-      // 餘弦調色盤
-      vec3 palette(float t) {
-          vec3 a = vec3(0.5, 0.5, 0.5);
-          vec3 b = vec3(0.5, 0.5, 0.5);
-          vec3 c = vec3(1.0, 1.0, 1.0);
-          vec3 d = vec3(0.263, 0.416, 0.557);
-          // 隨音頻動態調整顏色偏移
-          d += uTreble * 0.5;
-          return a + b * cos(6.28318 * (c * t + d));
+      // 2D 噪點
+      float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+                     mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+      }
+
+      // 分形布朗運動 (FBM)
+      float fbm(vec2 p) {
+          float v = 0.0;
+          float a = 0.5;
+          vec2 shift = vec2(100.0);
+          mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+          for (int i = 0; i < 6; ++i) {
+              v += a * noise(p);
+              p = rot * p * 2.0 + shift;
+              a *= 0.5;
+          }
+          return v;
       }
 
       void main() {
-          // 中心化座標
           vec2 uv = (gl_FragCoord.xy * 2.0 - uResolution.xy) / min(uResolution.x, uResolution.y);
-          vec2 uv0 = uv; // 保存初始座標
 
-          vec3 finalColor = vec3(0.0);
+          // 滑鼠互動影響力
+          float distToMouse = length(uv - uMouse * 0.5);
 
-          // 分形迭代
-          for(float i = 0.0; i < 4.0; i++) {
-              // 空間折疊與重複
-              // 低音影響分形的縮放與扭曲感
-              uv = fract(uv * (1.5 + uBass * 0.5)) - 0.5;
+          // 域扭曲 (Domain Warping)
+          vec2 q = vec2(0.0);
+          q.x = fbm(uv + 0.1 * uTime + uBass * 0.2);
+          q.y = fbm(uv + vec2(1.0));
 
-              float d = length(uv) * exp(-length(uv0));
+          vec2 r = vec2(0.0);
+          r.x = fbm(uv + 1.0 * q + vec2(1.7, 9.2) + 0.15 * uTime);
+          r.y = fbm(uv + 1.0 * q + vec2(8.3, 2.8) + 0.126 * uTime);
 
-              // 核心分形公式：使用 sin 與 exp 創造發光線條
-              vec3 col = palette(length(uv0) + i * 0.4 + uTime * 0.4);
+          float f = fbm(uv + r + uTreble * 0.3);
 
-              d = sin(d * 8.0 + uTime + uBass * 2.0) / 8.0;
-              d = abs(d);
+          // 色彩設計
+          vec3 col = vec3(0.0);
 
-              // 增加高頻處的細節發光
-              float strength = 0.01 / d;
-              strength = pow(strength, 1.2);
+          // 基礎背景色
+          col = mix(vec3(0.05, 0.0, 0.1), vec3(0.1, 0.2, 0.4), f);
 
-              finalColor += col * strength;
-          }
+          // 核心流動色彩 (隨音頻變化)
+          vec3 nebulaColor1 = vec3(0.1, 0.5, 0.8); // 青藍
+          vec3 nebulaColor2 = vec3(0.8, 0.2, 0.9); // 紫紅
 
-          // 隨高音增加整體的閃爍與數位顆粒感
-          float stars = fract(sin(dot(uv0, vec2(12.9898, 78.233))) * 43758.5453);
-          if(stars > 0.99) finalColor += vec3(1.0) * uTreble;
+          vec3 dynamicCol = mix(nebulaColor1, nebulaColor2, clamp(uBass * 2.0, 0.0, 1.0));
+          col = mix(col, dynamicCol, pow(q.x, 2.0));
 
-          // 邊緣漸暗處理
-          finalColor *= smoothstep(2.0, 0.5, length(uv0));
+          // 亮部邊緣
+          col = mix(col, vec3(0.5, 1.0, 1.0), pow(r.y, 3.0) * (1.0 + uTreble));
 
-          // 整體調亮
-          finalColor *= 15.0;
+          // 增加亮點與對比
+          float intensity = f * f * (3.0 - 2.0 * f);
+          col += intensity * 0.2 * uAudioIntensity;
 
-          gl_FragColor = vec4(finalColor, 1.0);
+          // 加入微細顆粒 (隨高音閃爍)
+          float grain = hash(uv + uTime) * 0.05 * uTreble;
+          col += grain;
+
+          // 邊緣柔化
+          float edge = smoothstep(1.5, 0.0, length(uv));
+
+          gl_FragColor = vec4(col * edge, 1.0);
       }
     </script>
 
     <script>
       let scene, camera, renderer, material;
       let audioContext, analyser, dataArray;
-      const overlay = document.getElementById("overlay");
+      let mouse = new THREE.Vector2(0, 0);
+      let targetMouse = new THREE.Vector2(0, 0);
+
+      let smoothBass = 0,
+        smoothTreble = 0,
+        smoothIntensity = 0;
 
       function initScene() {
         scene = new THREE.Scene();
@@ -168,6 +183,7 @@
           uniforms: {
             uTime: { value: 0 },
             uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            uMouse: { value: new THREE.Vector2(0, 0) },
             uAudioIntensity: { value: 0 },
             uBass: { value: 0 },
             uTreble: { value: 0 },
@@ -187,6 +203,11 @@
           renderer.setSize(window.innerWidth, window.innerHeight);
           material.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
         });
+
+        window.addEventListener("mousemove", (e) => {
+          targetMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+          targetMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
       }
 
       async function initAudio() {
@@ -194,15 +215,13 @@
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           audioContext = new (window.AudioContext || window.webkitAudioContext)();
           const source = audioContext.createMediaStreamSource(stream);
-
           analyser = audioContext.createAnalyser();
-          analyser.fftSize = 256;
+          analyser.fftSize = 512;
           source.connect(analyser);
-
           dataArray = new Uint8Array(analyser.frequencyBinCount);
           return true;
         } catch (err) {
-          console.error("Audio access failed:", err);
+          console.error("Audio Access Denied:", err);
           return false;
         }
       }
@@ -212,38 +231,35 @@
 
         if (analyser) {
           analyser.getByteFrequencyData(dataArray);
-
-          let sum = 0;
-          let bass = 0;
-          let treble = 0;
-
+          let b = 0,
+            t = 0,
+            s = 0;
           const len = dataArray.length;
-          for (let i = 0; i < len; i++) {
-            let v = dataArray[i] / 255.0;
-            sum += v;
-            if (i < 10) bass += v; // 低頻區
-            if (i > len * 0.6) treble += v; // 高頻區
-          }
 
-          material.uniforms.uAudioIntensity.value = sum / len;
-          // 低音增加爆發感
-          material.uniforms.uBass.value = Math.pow(bass / 10.0, 1.2);
-          // 高音捕捉靈敏度
-          material.uniforms.uTreble.value = (treble / (len * 0.4)) * 1.5;
+          for (let i = 0; i < 15; i++) b += dataArray[i];
+          for (let i = Math.floor(len * 0.7); i < len; i++) t += dataArray[i];
+          for (let i = 0; i < len; i++) s += dataArray[i];
+
+          smoothBass += (b / 15 / 255 - smoothBass) * 0.12;
+          smoothTreble += (t / (len * 0.3) / 255 - smoothTreble) * 0.15;
+          smoothIntensity += (s / len / 255 - smoothIntensity) * 0.1;
+
+          material.uniforms.uBass.value = smoothBass;
+          material.uniforms.uTreble.value = smoothTreble;
+          material.uniforms.uAudioIntensity.value = smoothIntensity;
         }
 
+        mouse.lerp(targetMouse, 0.05);
+        material.uniforms.uMouse.value.copy(mouse);
         material.uniforms.uTime.value = time * 0.001;
         renderer.render(scene, camera);
       }
 
-      overlay.addEventListener("click", async () => {
-        const success = await initAudio();
-        if (success) {
-          overlay.classList.add("hidden");
+      document.getElementById("overlay").addEventListener("click", async () => {
+        if (await initAudio()) {
+          document.getElementById("overlay").classList.add("hidden");
           initScene();
           animate(0);
-        } else {
-          alert("無法連接音頻。");
         }
       });
     </script>
