@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>音頻反應：分形萬花筒 Shader</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #000;
+        font-family: "Segoe UI", sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      #overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #fff;
+        text-align: center;
+        background: rgba(0, 0, 0, 0.8);
+        padding: 40px 60px;
+        border-radius: 5px;
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 0 50px rgba(100, 0, 255, 0.2);
+        z-index: 100;
+        backdrop-filter: blur(15px);
+        transition: all 0.5s ease;
+      }
+      #overlay:hover {
+        border-color: #a044ff;
+        box-shadow: 0 0 70px rgba(160, 68, 255, 0.4);
+      }
+      #overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, -50%) scale(1.2);
+      }
+      h2 {
+        margin: 0;
+        font-weight: 200;
+        letter-spacing: 10px;
+        color: #a044ff;
+        text-shadow: 0 0 10px rgba(160, 68, 255, 0.5);
+      }
+      p {
+        margin: 15px 0 0 0;
+        font-size: 11px;
+        color: #888;
+        letter-spacing: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="overlay">
+      <h2>解鎖分形</h2>
+      <p>UNLOCK FRACTAL RESONANCE</p>
+    </div>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+      varying vec2 vUv;
+      void main() {
+          vUv = uv;
+          gl_Position = vec4(position, 1.0);
+      }
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+      precision highp float;
+      uniform float uTime;
+      uniform vec2 uResolution;
+      uniform float uAudioIntensity;
+      uniform float uBass;
+      uniform float uTreble;
+      varying vec2 vUv;
+
+      // 旋轉矩陣
+      mat2 rot(float a) {
+          float s = sin(a), c = cos(a);
+          return mat2(c, -s, s, c);
+      }
+
+      // 餘弦調色盤
+      vec3 palette(float t) {
+          vec3 a = vec3(0.5, 0.5, 0.5);
+          vec3 b = vec3(0.5, 0.5, 0.5);
+          vec3 c = vec3(1.0, 1.0, 1.0);
+          vec3 d = vec3(0.263, 0.416, 0.557);
+          // 隨音頻動態調整顏色偏移
+          d += uTreble * 0.5;
+          return a + b * cos(6.28318 * (c * t + d));
+      }
+
+      void main() {
+          // 中心化座標
+          vec2 uv = (gl_FragCoord.xy * 2.0 - uResolution.xy) / min(uResolution.x, uResolution.y);
+          vec2 uv0 = uv; // 保存初始座標
+
+          vec3 finalColor = vec3(0.0);
+
+          // 分形迭代
+          for(float i = 0.0; i < 4.0; i++) {
+              // 空間折疊與重複
+              // 低音影響分形的縮放與扭曲感
+              uv = fract(uv * (1.5 + uBass * 0.5)) - 0.5;
+
+              float d = length(uv) * exp(-length(uv0));
+
+              // 核心分形公式：使用 sin 與 exp 創造發光線條
+              vec3 col = palette(length(uv0) + i * 0.4 + uTime * 0.4);
+
+              d = sin(d * 8.0 + uTime + uBass * 2.0) / 8.0;
+              d = abs(d);
+
+              // 增加高頻處的細節發光
+              float strength = 0.01 / d;
+              strength = pow(strength, 1.2);
+
+              finalColor += col * strength;
+          }
+
+          // 隨高音增加整體的閃爍與數位顆粒感
+          float stars = fract(sin(dot(uv0, vec2(12.9898, 78.233))) * 43758.5453);
+          if(stars > 0.99) finalColor += vec3(1.0) * uTreble;
+
+          // 邊緣漸暗處理
+          finalColor *= smoothstep(2.0, 0.5, length(uv0));
+
+          // 整體調亮
+          finalColor *= 15.0;
+
+          gl_FragColor = vec4(finalColor, 1.0);
+      }
+    </script>
+
+    <script>
+      let scene, camera, renderer, material;
+      let audioContext, analyser, dataArray;
+      const overlay = document.getElementById("overlay");
+
+      function initScene() {
+        scene = new THREE.Scene();
+        camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        material = new THREE.ShaderMaterial({
+          uniforms: {
+            uTime: { value: 0 },
+            uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            uAudioIntensity: { value: 0 },
+            uBass: { value: 0 },
+            uTreble: { value: 0 },
+          },
+          vertexShader: document.getElementById("vertexShader").textContent,
+          fragmentShader: document.getElementById("fragmentShader").textContent,
+        });
+
+        scene.add(new THREE.Mesh(geometry, material));
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        window.addEventListener("resize", () => {
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          material.uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+        });
+      }
+
+      async function initAudio() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioContext.createMediaStreamSource(stream);
+
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+
+          dataArray = new Uint8Array(analyser.frequencyBinCount);
+          return true;
+        } catch (err) {
+          console.error("Audio access failed:", err);
+          return false;
+        }
+      }
+
+      function animate(time) {
+        requestAnimationFrame(animate);
+
+        if (analyser) {
+          analyser.getByteFrequencyData(dataArray);
+
+          let sum = 0;
+          let bass = 0;
+          let treble = 0;
+
+          const len = dataArray.length;
+          for (let i = 0; i < len; i++) {
+            let v = dataArray[i] / 255.0;
+            sum += v;
+            if (i < 10) bass += v; // 低頻區
+            if (i > len * 0.6) treble += v; // 高頻區
+          }
+
+          material.uniforms.uAudioIntensity.value = sum / len;
+          // 低音增加爆發感
+          material.uniforms.uBass.value = Math.pow(bass / 10.0, 1.2);
+          // 高音捕捉靈敏度
+          material.uniforms.uTreble.value = (treble / (len * 0.4)) * 1.5;
+        }
+
+        material.uniforms.uTime.value = time * 0.001;
+        renderer.render(scene, camera);
+      }
+
+      overlay.addEventListener("click", async () => {
+        const success = await initAudio();
+        if (success) {
+          overlay.classList.add("hidden");
+          initScene();
+          animate(0);
+        } else {
+          alert("無法連接音頻。");
+        }
+      });
+    </script>
+  </body>
+</html>
