@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>靈魂星雲 | Soul Nebula Fluid</title>
+    <title>烈焰之魂 | Soul Flame</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
       body {
@@ -26,7 +26,7 @@
         justify-content: center;
         align-items: center;
         color: #fff;
-        background: radial-gradient(circle at center, rgba(10, 0, 30, 0.85) 0%, #000 100%);
+        background: radial-gradient(circle at center, rgba(30, 5, 0, 0.85) 0%, #000 100%);
         cursor: pointer;
         z-index: 100;
         transition: all 1s ease-in-out;
@@ -51,7 +51,7 @@
         font-weight: 200;
         letter-spacing: 12px;
         margin: 0;
-        background: linear-gradient(45deg, #00d2ff, #9d50bb);
+        background: linear-gradient(45deg, #ff6a00, #ff2200);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-size: 2.5rem;
@@ -81,8 +81,8 @@
   <body>
     <div id="overlay">
       <div class="container">
-        <h1>SOUL NEBULA</h1>
-        <div class="hint">Click to Connect Audio Stream</div>
+        <h1>SOUL FLAME</h1>
+        <div class="hint">Click to Ignite</div>
       </div>
     </div>
 
@@ -135,48 +135,52 @@
       void main() {
           vec2 uv = (gl_FragCoord.xy * 2.0 - uResolution.xy) / min(uResolution.x, uResolution.y);
 
-          // 滑鼠互動影響力
-          float distToMouse = length(uv - uMouse * 0.5);
+          // 火焰向上飄動：y 軸加時間偏移
+          vec2 fireUV = uv;
+          fireUV.y += uTime * 0.8 + uBass * 0.5;
 
-          // 域扭曲 (Domain Warping)
+          // 滑鼠互動：輕微擾動火焰
+          fireUV += uMouse * 0.1;
+
+          // 域扭曲產生火焰紋理
           vec2 q = vec2(0.0);
-          q.x = fbm(uv + 0.1 * uTime + uBass * 0.2);
-          q.y = fbm(uv + vec2(1.0));
+          q.x = fbm(fireUV * 1.5 + uTime * 0.3);
+          q.y = fbm(fireUV * 1.5 + vec2(5.2, 1.3));
 
           vec2 r = vec2(0.0);
-          r.x = fbm(uv + 1.0 * q + vec2(1.7, 9.2) + 0.15 * uTime);
-          r.y = fbm(uv + 1.0 * q + vec2(8.3, 2.8) + 0.126 * uTime);
+          r.x = fbm(fireUV * 2.0 + q + vec2(1.7, 9.2) + uTime * 0.2);
+          r.y = fbm(fireUV * 2.0 + q + vec2(8.3, 2.8) + uTime * 0.15);
 
-          float f = fbm(uv + r + uTreble * 0.3);
+          float f = fbm(fireUV * 1.5 + r + uTreble * 0.5);
 
-          // 色彩設計
+          // 火焰形狀：底部亮、頂部暗
+          float flameShape = 1.0 - smoothstep(-0.5, 1.5, uv.y);
+          // 水平收窄
+          flameShape *= smoothstep(1.2, 0.0, abs(uv.x) * (1.0 + uv.y * 0.5));
+
+          // 火焰強度
+          float fireIntensity = f * flameShape;
+          fireIntensity = pow(fireIntensity, 1.5) * (2.0 + uBass * 3.0);
+
+          // 火焰色彩：白芯 → 黃 → 橘 → 紅 → 暗紅
           vec3 col = vec3(0.0);
+          col = mix(vec3(0.1, 0.0, 0.0), vec3(0.9, 0.1, 0.0), clamp(fireIntensity, 0.0, 1.0));
+          col = mix(col, vec3(1.0, 0.6, 0.0), clamp(fireIntensity - 0.4, 0.0, 1.0));
+          col = mix(col, vec3(1.0, 0.9, 0.5), clamp(fireIntensity - 0.8, 0.0, 1.0));
+          col = mix(col, vec3(1.0, 1.0, 0.9), clamp(fireIntensity - 1.2, 0.0, 1.0));
 
-          // 基礎背景色
-          col = mix(vec3(0.05, 0.0, 0.1), vec3(0.1, 0.2, 0.4), f);
+          // 高音帶出火花閃爍
+          float spark = hash(uv * 10.0 + uTime * 3.0);
+          if(spark > 0.97) col += vec3(1.0, 0.8, 0.3) * uTreble * flameShape;
 
-          // 核心流動色彩 (隨音頻變化)
-          vec3 nebulaColor1 = vec3(0.1, 0.5, 0.8); // 青藍
-          vec3 nebulaColor2 = vec3(0.8, 0.2, 0.9); // 紫紅
+          // 底部餘燼光暈
+          float ember = exp(-length(vec2(uv.x, uv.y + 0.8)) * 3.0);
+          col += vec3(0.6, 0.1, 0.0) * ember * (0.5 + uBass);
 
-          vec3 dynamicCol = mix(nebulaColor1, nebulaColor2, clamp(uBass * 2.0, 0.0, 1.0));
-          col = mix(col, dynamicCol, pow(q.x, 2.0));
+          // 整體音頻亮度提升
+          col += col * uAudioIntensity * 0.3;
 
-          // 亮部邊緣
-          col = mix(col, vec3(0.5, 1.0, 1.0), pow(r.y, 3.0) * (1.0 + uTreble));
-
-          // 增加亮點與對比
-          float intensity = f * f * (3.0 - 2.0 * f);
-          col += intensity * 0.2 * uAudioIntensity;
-
-          // 加入微細顆粒 (隨高音閃爍)
-          float grain = hash(uv + uTime) * 0.05 * uTreble;
-          col += grain;
-
-          // 邊緣柔化
-          float edge = smoothstep(1.5, 0.0, length(uv));
-
-          gl_FragColor = vec4(col * edge, 1.0);
+          gl_FragColor = vec4(col, 1.0);
       }
     </script>
 
