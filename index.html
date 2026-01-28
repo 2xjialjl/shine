@@ -30,7 +30,10 @@
         box-shadow: 0 0 50px rgba(100, 0, 255, 0.2);
         z-index: 100;
         backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
         transition: all 0.5s ease;
+        max-width: 85vw;
+        box-sizing: border-box;
       }
       #overlay:hover {
         border-color: #a044ff;
@@ -53,6 +56,19 @@
         font-size: 11px;
         color: #888;
         letter-spacing: 4px;
+      }
+      @media (max-width: 480px) {
+        #overlay {
+          padding: 30px 24px;
+        }
+        h2 {
+          font-size: 18px;
+          letter-spacing: 6px;
+        }
+        p {
+          font-size: 10px;
+          letter-spacing: 2px;
+        }
       }
     </style>
   </head>
